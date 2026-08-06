@@ -21,11 +21,8 @@ Add this to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  vehicle_frame_capture:
-    path: packages/vehicle_frame_capture
+  vehicle_frame_capture: ^3.0.0
 ```
-
-(Swap the `path` for a version constraint once this package is published to pub.dev.)
 
 ### Platform setup
 

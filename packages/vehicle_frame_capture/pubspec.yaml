@@ -3,10 +3,8 @@ description: >-
   A guided, multi-angle vehicle photo capture flow: a rectangular frame
   overlay, live device-level feedback, and camera integration in one widget.
 version: 3.0.0
-# Remove this line once you're ready to run `dart pub publish` for real —
-# it's a safety guard so this package isn't published to the public
-# registry by accident.
-publish_to: 'none'
+homepage: https://github.com/musab-nextgeni/vehicle_layout_framer
+repository: https://github.com/musab-nextgeni/vehicle_layout_framer
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
