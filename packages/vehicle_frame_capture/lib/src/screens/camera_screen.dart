@@ -115,19 +115,29 @@ class _CameraScreenState extends State<CameraScreen> {
   void initState() {
     super.initState();
     _captureFlow = CaptureFlow(sides: widget.steps);
-    // Locked to a single landscape orientation rather than both — letting
-    // the device rotate between landscapeLeft/Right while the camera
-    // plugin tracks *physical* orientation independently is what caused
-    // the preview image to render rotated relative to the (also rotating)
-    // UI. Pinning both the UI and the capture orientation (below) to the
-    // same fixed value keeps them in lockstep regardless of how the phone
-    // is actually held.
-    //
-    // This is landscapeRight, not landscapeLeft: Flutter's
-    // DeviceOrientation naming is inverted relative to iOS's native
-    // UIInterfaceOrientation for landscape — landscapeLeft here rendered
-    // upside down on-device.
-    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight]);
+    if (Platform.isIOS) {
+      // iOS-only workaround: letting the device rotate between
+      // landscapeLeft/Right while the camera plugin tracks *physical*
+      // orientation independently is what caused the preview to render
+      // rotated on iOS. Pinning to a single fixed orientation (matched by
+      // lockCaptureOrientation below) keeps preview and capture in
+      // lockstep regardless of how the phone is actually held.
+      //
+      // This is landscapeRight, not landscapeLeft: Flutter's
+      // DeviceOrientation naming is inverted relative to iOS's native
+      // UIInterfaceOrientation for landscape — landscapeLeft here rendered
+      // upside down on-device. Android's camera plugin doesn't have this
+      // quirk and works correctly with both landscape orientations, so it
+      // keeps the original unrestricted behavior below.
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
     _initializeCamera();
     _startSensorStream();
   }
@@ -163,19 +173,21 @@ class _CameraScreenState extends State<CameraScreen> {
       enableAudio: false,
     );
 
-    _initializeControllerFuture = _controller!.initialize().then((_) {
-      // Without this, the plugin derives preview/capture rotation from the
-      // device's *physical* orientation (via native orientation
-      // notifications), which fights with the UI being locked to a single
-      // orientation above — that mismatch is what rendered the preview
-      // rotated.
+    _initializeControllerFuture = _controller!.initialize().then((_) async {
+      // iOS-only — see the matching Platform.isIOS branch in initState.
+      // Without this, the plugin derives still-photo rotation from the
+      // device's *physical* orientation independently of the UI lock
+      // above, which is what caused the captured file's rotation to
+      // mismatch the (already-correct) live preview.
       //
       // This is landscapeLeft, NOT landscapeRight (unlike the UI lock
       // above): on iOS, lockCaptureOrientation's effect on the still-photo
       // pipeline uses an inverted left/right mapping from whatever fixed
       // the live preview — landscapeRight here produced a preview-correct
-      // but 180°-flipped *captured file*.
-      return _controller!.lockCaptureOrientation(
+      // but 180°-flipped *captured file*. Android has neither quirk, so it
+      // doesn't need this call at all.
+      if (!Platform.isIOS) return;
+      await _controller!.lockCaptureOrientation(
         DeviceOrientation.landscapeLeft,
       );
     });
