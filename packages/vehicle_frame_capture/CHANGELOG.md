@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.0.1] - 2026-08-20
+
+### Fixed
+- iOS: the camera preview and the captured photo could each end up rotated relative to what the user actually saw, because `CameraController` tracks physical device orientation independently of the app's forced landscape UI, and (separately) `lockCaptureOrientation`'s `landscapeLeft`/`landscapeRight` mapping for the still-photo pipeline is inverted from the one that fixes the live preview. `CameraScreen` now locks the UI to `landscapeRight` and the still-capture orientation to `landscapeLeft` on iOS specifically. Android is unaffected — it never had this bug — and keeps its original unrestricted landscape behavior.
+
+### Chore
+- Added `analysis_options.yaml` to this package. `flutter_lints` was already a `dev_dependency` but had no `analysis_options.yaml` wiring it in, so analysis was silently running with bare Dart defaults instead of the ruleset the package claims to use.
+- Reformatted the package with `dart format` for a clean `flutter pub publish` git-state check.
+
 ## [4.0.0] - 2026-08-20
 
 ### Breaking changes

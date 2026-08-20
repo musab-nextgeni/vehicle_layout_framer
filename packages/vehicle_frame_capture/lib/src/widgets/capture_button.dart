@@ -42,11 +42,11 @@ class CaptureButton extends StatelessWidget {
                   child: CircularProgressIndicator(color: Colors.blue),
                 )
               : (!isReady
-                    ? Icon(
-                        Icons.camera_alt_outlined,
-                        color: idleColor.withValues(alpha: 0.5),
-                      )
-                    : null),
+                  ? Icon(
+                      Icons.camera_alt_outlined,
+                      color: idleColor.withValues(alpha: 0.5),
+                    )
+                  : null),
         ),
       ),
     );

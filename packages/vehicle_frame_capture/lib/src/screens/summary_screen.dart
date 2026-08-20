@@ -21,16 +21,13 @@ class SummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleStyle =
-        theme.titleTextStyle ??
+    final titleStyle = theme.titleTextStyle ??
         (Theme.of(context).textTheme.titleLarge ?? const TextStyle())
             .copyWith(fontWeight: FontWeight.bold, color: Colors.black);
-    final labelStyle =
-        theme.labelTextStyle ??
+    final labelStyle = theme.labelTextStyle ??
         (Theme.of(context).textTheme.labelLarge ?? const TextStyle())
             .copyWith(fontWeight: FontWeight.w600, fontSize: 16);
-    final actionStyle =
-        theme.labelTextStyle ??
+    final actionStyle = theme.labelTextStyle ??
         (Theme.of(context).textTheme.labelLarge ?? const TextStyle())
             .copyWith(fontSize: 18, fontWeight: FontWeight.w600);
 

@@ -1,0 +1,4 @@
+# This file configures the analyzer for this package specifically — without
+# it, `flutter_lints` (declared as a dev_dependency) is never actually wired
+# in, and analysis falls back to the bare Dart defaults.
+include: package:flutter_lints/flutter.yaml
