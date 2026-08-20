@@ -4,26 +4,20 @@ import 'dart:io';
 /// label/instruction shown while that shot is active.
 enum VehicleSide {
   front('Front', 'Align the front of the vehicle within the frame'),
-  left('Left Side', 'Align the left side of the vehicle within the frame'),
-  right('Right Side', 'Align the right side of the vehicle within the frame'),
-  back('Back', 'Align the rear of the vehicle within the frame'),
-  insideFrontRow(
-    'Inside Front Row',
-    'Capture the interior front row of the vehicle',
+  frontRight(
+    'Front Right',
+    'Align the front-right corner of the vehicle within the frame',
   ),
-  insideBackRow(
-    'Inside Back Row',
-    'Capture the interior back row of the vehicle',
+  frontSide('Front Side', 'Align the side of the vehicle within the frame'),
+  rearLeft(
+    'Rear Left',
+    'Align the rear-left corner of the vehicle within the frame',
   ),
-  engineBay(
-    'Engine Bay',
-    'Open the hood and align the engine bay within the frame',
-  ),
-  dashboardOdometer(
-    'Dashboard & Odometer',
-    'Capture the dashboard and odometer reading clearly',
-  ),
-  trunk('Trunk / Boot', 'Open the trunk and align it within the frame');
+  roof('Roof', 'Align the roof of the vehicle within the frame'),
+  console('Console', 'Capture the center console clearly'),
+  dashboard('Dashboard', 'Capture the dashboard and odometer reading clearly'),
+  cockPit('Cock Pit', 'Capture the driver cockpit/steering wheel area'),
+  trunk('Trunk', 'Open the trunk and align it within the frame');
 
   /// Short title shown in the capture screen's header.
   final String label;
@@ -31,6 +25,31 @@ enum VehicleSide {
   /// One-line guidance shown under [label] while this step is active.
   final String instruction;
   const VehicleSide(this.label, this.instruction);
+
+  /// The 6 exterior angles, in the order they're captured.
+  ///
+  /// [console], [roof], and [rearLeft] also appear in [interiorSides] — each
+  /// category runs as its own independent [CaptureFlow], so the same side
+  /// captured under both categories produces two separate images.
+  static const List<VehicleSide> exteriorSides = [
+    front,
+    frontRight,
+    frontSide,
+    console,
+    roof,
+    rearLeft,
+  ];
+
+  /// The 6 interior angles, in the order they're captured. See
+  /// [exteriorSides] for why some labels appear in both lists.
+  static const List<VehicleSide> interiorSides = [
+    dashboard,
+    cockPit,
+    trunk,
+    console,
+    roof,
+    rearLeft,
+  ];
 }
 
 /// A single step of a [CaptureFlow]: which [VehicleSide] it's for, and the
@@ -45,10 +64,10 @@ class CaptureStep {
 /// Tracks progress through a vehicle capture sequence and stores the
 /// captured image for each step.
 ///
-/// Defaults to all 9 [VehicleSide] values in declaration order (4 exterior
-/// angles, 2 interior rows, engine bay, dashboard/odometer, trunk). Pass
-/// [sides] to capture a different subset or order — e.g. just the exterior
-/// angles, or with a consumer-specific step appended.
+/// Defaults to all 9 [VehicleSide] values in declaration order. Pass [sides]
+/// to capture a different subset or order — e.g. [VehicleSide.exteriorSides]
+/// or [VehicleSide.interiorSides] to run exterior/interior as separate
+/// flows.
 class CaptureFlow {
   CaptureFlow({List<VehicleSide>? sides})
     : steps = (sides ?? VehicleSide.values)

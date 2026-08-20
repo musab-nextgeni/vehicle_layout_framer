@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+/// A capture shutter button. [isReady] only drives its visual style (color,
+/// icon) — [onTap] always fires on tap, regardless of [isReady], so the
+/// caller decides whether "not ready" should block capture or just show a
+/// hint.
 class CaptureButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool isReady;
@@ -19,7 +23,7 @@ class CaptureButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: isReady ? onTap : null,
+      onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.all(4),

@@ -105,12 +105,7 @@ class ExampleHomePage extends StatelessWidget {
               onPressed: () => _startCapture(
                 context,
                 showSummary: true,
-                steps: const [
-                  VehicleSide.front,
-                  VehicleSide.left,
-                  VehicleSide.right,
-                  VehicleSide.back,
-                ],
+                steps: VehicleSide.exteriorSides,
                 theme: const VehicleCaptureTheme(
                   readyColor: Colors.orangeAccent,
                   primaryColor: Colors.deepPurple,

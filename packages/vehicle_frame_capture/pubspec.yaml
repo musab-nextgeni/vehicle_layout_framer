@@ -2,7 +2,7 @@ name: vehicle_frame_capture
 description: >-
   A guided, multi-angle vehicle photo capture flow: a rectangular frame
   overlay, live device-level feedback, and camera integration in one widget.
-version: 3.0.0
+version: 4.1.0
 homepage: https://github.com/musab-nextgeni/vehicle_layout_framer
 repository: https://github.com/musab-nextgeni/vehicle_layout_framer
 

@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:vehicle_layout_frame_app/screens/instruction_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Portrait is the app-wide default; CameraScreen explicitly locks
+  // landscape while active and restores this on exit.
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   runApp(const MyApp());
 }
 

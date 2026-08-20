@@ -20,7 +20,8 @@ typedef StepChangedCallback =
 
 /// Guides the user through a multi-step vehicle photo capture flow, showing
 /// a rectangular frame overlay that turns green once the device is held
-/// level.
+/// level. The shutter captures on every tap by default regardless of level
+/// — see [requireLevelToCapture] to require it instead.
 ///
 /// By default (`showSummary: false`) it returns the captured images via
 /// [Navigator.pop] as soon as the last step is captured, leaving any review
@@ -52,6 +53,8 @@ class CameraScreen extends StatefulWidget {
     this.levelZTolerance = 2.0,
     this.onPhotoCaptured,
     this.onStepChanged,
+    this.restoreOrientationOnDispose = true,
+    this.requireLevelToCapture = false,
   });
 
   /// Which [VehicleSide]s to capture, in order. Defaults to all 9
@@ -84,6 +87,29 @@ class CameraScreen extends StatefulWidget {
 
   /// Called whenever the flow advances to a new step.
   final StepChangedCallback? onStepChanged;
+
+  /// If true (the default), restores portrait orientation when this screen
+  /// is disposed.
+  ///
+  /// Set to false when immediately pushing another landscape-locking
+  /// [CameraScreen] right after this one (e.g. running exterior and interior
+  /// capture as two chained flows) — otherwise this screen's portrait
+  /// restore, delayed until its pop transition finishes, can land after the
+  /// next screen's landscape lock and leave it stuck in portrait. The last
+  /// screen in such a chain should leave this at its default so portrait is
+  /// restored once the whole sequence is done.
+  final bool restoreOrientationOnDispose;
+
+  /// If false (the default), the shutter always captures on tap — the level
+  /// indicator (the frame outline, horizon line, and "DEVICE LEVEL"/"HOLD
+  /// STRAIGHT" badge) is shown purely as a framing hint. Some angles (e.g.
+  /// looking down into a trunk, or up at a roof) can't be held within the
+  /// accelerometer's level tolerance at all, so blocking capture on it would
+  /// make those angles uncapturable.
+  ///
+  /// Set to true to require the device be level before a tap actually takes
+  /// a photo (a tap while not level shows a reminder instead).
+  final bool requireLevelToCapture;
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
@@ -165,11 +191,13 @@ class _CameraScreenState extends State<CameraScreen> {
     _sensorSubscription?.cancel();
     _isLevelNotifier.dispose();
     _tiltAngleNotifier.dispose();
-    // Restore portrait now that the capture flow is done.
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    if (widget.restoreOrientationOnDispose) {
+      // Restore portrait now that the capture flow is done.
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
     super.dispose();
   }
 
@@ -399,7 +427,7 @@ class _CameraScreenState extends State<CameraScreen> {
                   valueListenable: _isLevelNotifier,
                   builder: (context, isLevel, _) {
                     return CaptureButton(
-                      onTap: isLevel
+                      onTap: (!widget.requireLevelToCapture || isLevel)
                           ? _takePicture
                           : () {
                               ScaffoldMessenger.of(context).showSnackBar(

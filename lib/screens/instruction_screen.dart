@@ -1,8 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:vehicle_frame_capture/vehicle_frame_capture.dart';
+
+import '../models/vehicle_capture_result.dart';
+import 'upload_vehicle_images_screen.dart';
 
 class InstructionScreen extends StatelessWidget {
   const InstructionScreen({super.key});
@@ -76,17 +80,71 @@ class InstructionScreen extends StatelessWidget {
                           margin: const EdgeInsets.only(bottom: 30, top: 20),
                           child: ElevatedButton(
                             onPressed: () async {
-                              // CameraScreen manages its own orientation
-                              // lifecycle (locks landscape on entry, restores
-                              // portrait on exit) and returns the captured
-                              // photos, or null if the user backed out.
-                              var files = await Navigator.push<List<File>>(
+                              // Exterior and interior are captured as two
+                              // separate guided sessions; a null result from
+                              // either (user exited mid-flow) aborts back
+                              // here rather than proceeding with partial
+                              // photos.
+                              //
+                              // restoreOrientationOnDispose is false here
+                              // because the interior CameraScreen is pushed
+                              // immediately after — this screen's pop
+                              // transition would otherwise restore portrait
+                              // after the interior screen's landscape lock,
+                              // leaving it stuck in portrait.
+                              final exteriorFiles = await Navigator.push<List<File>>(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const CameraScreen(),
+                                  builder: (context) => const CameraScreen(
+                                    steps: VehicleSide.exteriorSides,
+                                    restoreOrientationOnDispose: false,
+                                  ),
                                 ),
                               );
-                              print('[Captured files]: ${files?.length ?? 0}');
+                              if (exteriorFiles == null) {
+                                // Aborted mid-exterior-flow: the exterior
+                                // screen didn't restore portrait itself, so
+                                // do it here before returning.
+                                SystemChrome.setPreferredOrientations([
+                                  DeviceOrientation.portraitUp,
+                                  DeviceOrientation.portraitDown,
+                                ]);
+                                return;
+                              }
+                              if (!context.mounted) return;
+
+                              final interiorFiles = await Navigator.push<List<File>>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const CameraScreen(
+                                    steps: VehicleSide.interiorSides,
+                                  ),
+                                ),
+                              );
+                              if (!context.mounted || interiorFiles == null) {
+                                return;
+                              }
+
+                              final result = VehicleCaptureResult(
+                                exterior: Map.fromIterables(
+                                  VehicleSide.exteriorSides,
+                                  exteriorFiles,
+                                ),
+                                interior: Map.fromIterables(
+                                  VehicleSide.interiorSides,
+                                  interiorFiles,
+                                ),
+                              );
+
+                              if (!context.mounted) return;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => UploadVehicleImagesScreen(
+                                    initialResult: result,
+                                  ),
+                                ),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF0D47A1),

@@ -47,6 +47,8 @@
 	<string>This app needs camera access to take vehicle images.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access for video capture if needed.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to upload vehicle images.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 </dict>
