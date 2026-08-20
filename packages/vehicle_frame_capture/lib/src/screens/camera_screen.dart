@@ -115,10 +115,19 @@ class _CameraScreenState extends State<CameraScreen> {
   void initState() {
     super.initState();
     _captureFlow = CaptureFlow(sides: widget.steps);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // Locked to a single landscape orientation rather than both — letting
+    // the device rotate between landscapeLeft/Right while the camera
+    // plugin tracks *physical* orientation independently is what caused
+    // the preview image to render rotated relative to the (also rotating)
+    // UI. Pinning both the UI and the capture orientation (below) to the
+    // same fixed value keeps them in lockstep regardless of how the phone
+    // is actually held.
+    //
+    // This is landscapeRight, not landscapeLeft: Flutter's
+    // DeviceOrientation naming is inverted relative to iOS's native
+    // UIInterfaceOrientation for landscape — landscapeLeft here rendered
+    // upside down on-device.
+    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight]);
     _initializeCamera();
     _startSensorStream();
   }
@@ -154,7 +163,22 @@ class _CameraScreenState extends State<CameraScreen> {
       enableAudio: false,
     );
 
-    _initializeControllerFuture = _controller!.initialize();
+    _initializeControllerFuture = _controller!.initialize().then((_) {
+      // Without this, the plugin derives preview/capture rotation from the
+      // device's *physical* orientation (via native orientation
+      // notifications), which fights with the UI being locked to a single
+      // orientation above — that mismatch is what rendered the preview
+      // rotated.
+      //
+      // This is landscapeLeft, NOT landscapeRight (unlike the UI lock
+      // above): on iOS, lockCaptureOrientation's effect on the still-photo
+      // pipeline uses an inverted left/right mapping from whatever fixed
+      // the live preview — landscapeRight here produced a preview-correct
+      // but 180°-flipped *captured file*.
+      return _controller!.lockCaptureOrientation(
+        DeviceOrientation.landscapeLeft,
+      );
+    });
     _initializeControllerFuture?.then((_) {
       if (!mounted) return;
       setState(() {});
