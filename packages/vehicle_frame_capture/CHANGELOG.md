@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.0.0] - 2026-08-20
+
+### Breaking changes
+- `VehicleSide` is no longer an `enum` — it's a plain class with `id`, `category`, `label`, `instruction`, and `requiresLevel` fields. `VehicleSide.values` no longer exists (use `VehicleSide.defaultValues` or `VehicleSide.catalog` instead), and it can no longer be used in exhaustive `switch` statements or as a `const` pattern outside this package.
+- Reshaped the default angle set and grew it from 9 to 12 steps. `left`/`right` (single side-profile shots) are replaced by four corner/side angles — `frontRight`/`frontSide`/`rearRight`/`rearLeft`; `insideFrontRow`/`insideBackRow`/`dashboardOdometer` are replaced by `cockpit`/`driverDoor`/`dashboard`. `CaptureFlow`/`CameraScreen` now default to `VehicleSide.defaultValues` (6 exterior + 6 interior) instead of the old 9.
+- `CameraScreen.levelYTolerance`/`levelZTolerance` defaults changed from `1.0`/`2.0` to `2.0`/`3.0` (m/s²) — the level check was too strict to comfortably hold by hand.
+- The internal single-axis horizon-line indicator (`LevelHorizonPainter`) is replaced by `LevelCrosshairPainter`, a two-axis bubble-level indicator with a different constructor (`bubbleOffset` instead of an externally-applied rotation).
+
+### Added
+- `VehicleCaptureCategory` — tags every `VehicleSide` as `exterior` or `interior`, for building tabbed capture UIs.
+- `VehicleSide.catalog` (`catalogExterior` + `catalogInterior`) — ~35 additional built-in angles beyond the default 12: wheels, windshield, headlights/taillights, license plate, VIN plate, undercarriage, engine bay, instrument cluster, glove box, seat belts, cargo area, and more.
+- `VehicleSide.custom({label, instruction, category, requiresLevel, id})` — define one-off angles outside the catalog at runtime.
+- `VehicleSide.requiresLevel` — per-angle opt-out of the device-level check. Set to `false` in the catalog for angles inherently shot tilted up/down (roof, undercarriage, engine bay, wheels, VIN plate, pedals, etc.) so their shutter is never permanently blocked by a level check that could never pass. `CameraScreen` hides the level indicator entirely and always enables the shutter for such steps.
+- Two-axis level indicator: roll (Y) and pitch (Z) are now combined into a single crosshair/bubble-level reticle instead of a rotating horizon line driven by roll alone.
+
 ## [3.0.0] - 2026-08-06
 
 ### Breaking changes

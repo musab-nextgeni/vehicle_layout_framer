@@ -35,6 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.9
   google_fonts: ^8.2.1
+  camera: ^0.12.0+2
   vehicle_frame_capture:
     path: packages/vehicle_frame_capture
 

@@ -18,7 +18,7 @@ packages:
     source: hosted
     version: "2.1.2"
   camera:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: camera
       sha256: "558230d6ce6ccea856b32d390db7e7b557adf4d9320aa614481bd3f2f608953f"
@@ -411,7 +411,7 @@ packages:
       path: "packages/vehicle_frame_capture"
       relative: true
     source: path
-    version: "3.0.0"
+    version: "4.0.0"
   vm_service:
     dependency: transitive
     description:

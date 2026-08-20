@@ -89,8 +89,7 @@ class ExampleHomePage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: () =>
-                  _startCapture(context, showSummary: false),
+              onPressed: () => _startCapture(context, showSummary: false),
               icon: const Icon(Icons.camera_alt),
               label: const Text('Quick capture (no review screen)'),
             ),
@@ -107,9 +106,9 @@ class ExampleHomePage extends StatelessWidget {
                 showSummary: true,
                 steps: const [
                   VehicleSide.front,
-                  VehicleSide.left,
-                  VehicleSide.right,
-                  VehicleSide.back,
+                  VehicleSide.frontRight,
+                  VehicleSide.rearRight,
+                  VehicleSide.rear,
                 ],
                 theme: const VehicleCaptureTheme(
                   readyColor: Colors.orangeAccent,

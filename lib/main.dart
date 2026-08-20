@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:vehicle_layout_frame_app/screens/instruction_screen.dart';
+import 'package:vehicle_layout_frame_app/screens/angle_selection_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
         useMaterial3: true,
       ),
-      home: const InstructionScreen(),
+      home: const AngleSelectionScreen(),
     );
   }
 }

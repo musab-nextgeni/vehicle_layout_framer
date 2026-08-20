@@ -15,8 +15,8 @@ import 'summary_screen.dart';
 typedef PhotoCapturedCallback = void Function(VehicleSide side, File image);
 
 /// Called whenever the flow advances to a new step.
-typedef StepChangedCallback =
-    void Function(VehicleSide side, int stepIndex, int totalSteps);
+typedef StepChangedCallback = void Function(
+    VehicleSide side, int stepIndex, int totalSteps);
 
 /// Guides the user through a multi-step vehicle photo capture flow, showing
 /// a rectangular frame overlay that turns green once the device is held
@@ -48,14 +48,14 @@ class CameraScreen extends StatefulWidget {
     this.showSummary = false,
     this.resolutionPreset = ResolutionPreset.medium,
     this.preferredLensDirection = CameraLensDirection.back,
-    this.levelYTolerance = 1.0,
-    this.levelZTolerance = 2.0,
+    this.levelYTolerance = 2.0,
+    this.levelZTolerance = 3.0,
     this.onPhotoCaptured,
     this.onStepChanged,
   });
 
-  /// Which [VehicleSide]s to capture, in order. Defaults to all 9
-  /// [VehicleSide.values].
+  /// Which [VehicleSide]s to capture, in order. Defaults to
+  /// [VehicleSide.defaultValues].
   final List<VehicleSide>? steps;
 
   /// Colors and text styles used throughout the flow.
@@ -73,10 +73,13 @@ class CameraScreen extends StatefulWidget {
   /// available camera if none match.
   final CameraLensDirection preferredLensDirection;
 
-  /// Maximum accelerometer Y reading (m/s²) still considered "level".
+  /// Maximum accelerometer Y (roll) reading (m/s²) still considered
+  /// "level". Defaults to 2.0 (~11.8° of tilt) — loose enough to hold
+  /// steady by hand while still catching an obviously crooked shot.
   final double levelYTolerance;
 
-  /// Maximum accelerometer Z reading (m/s²) still considered "level".
+  /// Maximum accelerometer Z (pitch) reading (m/s²) still considered
+  /// "level". Defaults to 3.0 (~17.7° of tilt).
   final double levelZTolerance;
 
   /// Called after each photo is saved to disk.
@@ -102,7 +105,11 @@ class _CameraScreenState extends State<CameraScreen> {
   // rebuild to just the small widgets that actually depend on this data.
   StreamSubscription<AccelerometerEvent>? _sensorSubscription;
   final ValueNotifier<bool> _isLevelNotifier = ValueNotifier(false);
-  final ValueNotifier<double> _tiltAngleNotifier = ValueNotifier(0.0);
+  // Normalized (roughly -1..1) roll (Y) and pitch (Z) readings, combined by
+  // the crosshair below into a single bubble-level indicator instead of
+  // showing left/right tilt alone.
+  final ValueNotifier<double> _rollNotifier = ValueNotifier(0.0);
+  final ValueNotifier<double> _pitchNotifier = ValueNotifier(0.0);
 
   @override
   void initState() {
@@ -117,24 +124,19 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   void _startSensorStream() {
-    _sensorSubscription =
-        accelerometerEventStream(
-          samplingPeriod: SensorInterval.uiInterval,
-        ).listen((AccelerometerEvent event) {
-          // In landscape:
-          // Y is mostly gravity if held upright long-side horizontal.
-          // X is gravity if tilted left/right.
-          // Z is gravity if tiled forward/back.
+    _sensorSubscription = accelerometerEventStream(
+      samplingPeriod: SensorInterval.uiInterval,
+    ).listen((AccelerometerEvent event) {
+      // In landscape:
+      // Y is roll — gravity component when tilted left/right.
+      // Z is pitch — gravity component when tilted forward/back (i.e.
+      // pointed up or down).
+      _rollNotifier.value = (-event.y / 9.8).clamp(-1.0, 1.0);
+      _pitchNotifier.value = (-event.z / 9.8).clamp(-1.0, 1.0);
 
-          // Calculate the tilt angle for the horizon line.
-          // In landscape, X/Y are our primary axes.
-          _tiltAngleNotifier.value =
-              -event.y / 9.8; // Normalized tilt for a subtle visual effect
-
-          _isLevelNotifier.value =
-              event.y.abs() < widget.levelYTolerance &&
-              event.z.abs() < widget.levelZTolerance;
-        });
+      _isLevelNotifier.value = event.y.abs() < widget.levelYTolerance &&
+          event.z.abs() < widget.levelZTolerance;
+    });
   }
 
   Future<void> _initializeCamera() async {
@@ -164,7 +166,8 @@ class _CameraScreenState extends State<CameraScreen> {
     _controller?.dispose();
     _sensorSubscription?.cancel();
     _isLevelNotifier.dispose();
-    _tiltAngleNotifier.dispose();
+    _rollNotifier.dispose();
+    _pitchNotifier.dispose();
     // Restore portrait now that the capture flow is done.
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -254,6 +257,10 @@ class _CameraScreenState extends State<CameraScreen> {
     }
 
     final theme = widget.theme;
+    // Angles shot tilted up/down (roof, undercarriage, engine bay, ...) set
+    // this to false in the catalog so the horizon-based level check — built
+    // for upright, landscape-level shots — never permanently blocks them.
+    final requiresLevel = _captureFlow.currentStep.side.requiresLevel;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -290,9 +297,10 @@ class _CameraScreenState extends State<CameraScreen> {
           ValueListenableBuilder<bool>(
             valueListenable: _isLevelNotifier,
             builder: (context, isLevel, _) {
+              final effectiveIsLevel = !requiresLevel || isLevel;
               return CustomPaint(
                 painter: VehicleFramePainter(
-                  isReady: isLevel,
+                  isReady: effectiveIsLevel,
                   readyColor: theme.readyColor,
                   idleColor: theme.idleColor,
                 ),
@@ -301,72 +309,79 @@ class _CameraScreenState extends State<CameraScreen> {
             },
           ),
 
-          // Horizon Level Line
-          IgnorePointer(
-            child: Center(
-              child: AnimatedBuilder(
-                animation: Listenable.merge([
-                  _tiltAngleNotifier,
-                  _isLevelNotifier,
-                ]),
-                builder: (context, _) {
-                  return Transform.rotate(
-                    angle: _tiltAngleNotifier.value,
-                    child: CustomPaint(
-                      painter: LevelHorizonPainter(
+          // Level Crosshair — combines roll (Y) and pitch (Z) into one
+          // bubble-level indicator instead of showing left/right tilt
+          // alone, so both axes read at a glance. Hidden for angles shot
+          // tilted up/down, where it'd never settle.
+          if (requiresLevel)
+            IgnorePointer(
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: Listenable.merge([
+                    _rollNotifier,
+                    _pitchNotifier,
+                    _isLevelNotifier,
+                  ]),
+                  builder: (context, _) {
+                    const maxOffset = 36.0;
+                    return CustomPaint(
+                      painter: LevelCrosshairPainter(
+                        bubbleOffset: Offset(
+                          _rollNotifier.value * maxOffset,
+                          _pitchNotifier.value * maxOffset,
+                        ),
                         isLevel: _isLevelNotifier.value,
                         readyColor: theme.readyColor,
                         idleColor: theme.idleColor,
                       ),
-                      size: const Size(200, 2),
+                      size: const Size(140, 140),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          // Level Indicator
+          if (requiresLevel)
+            Positioned(
+              left: 20,
+              bottom: 40,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _isLevelNotifier,
+                builder: (context, isLevel, _) {
+                  final color = isLevel ? theme.readyColor : theme.dangerColor;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: color, width: 2),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isLevel ? Icons.check_circle : Icons.error_outline,
+                          color: color,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isLevel ? 'DEVICE LEVEL' : 'HOLD STRAIGHT',
+                          style: _labelStyle(context),
+                        ),
+                      ],
                     ),
                   );
                 },
               ),
             ),
-          ),
-
-          // Level Indicator
-          Positioned(
-            left: 20,
-            bottom: 40,
-            child: ValueListenableBuilder<bool>(
-              valueListenable: _isLevelNotifier,
-              builder: (context, isLevel, _) {
-                final color = isLevel ? theme.readyColor : theme.dangerColor;
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: color, width: 2),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isLevel ? Icons.check_circle : Icons.error_outline,
-                        color: color,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isLevel ? 'DEVICE LEVEL' : 'HOLD STRAIGHT',
-                        style: _labelStyle(context),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
 
           // Header (Top from landscape)
           Positioned(
             right: MediaQuery.of(context).size.width * 0.3,
-
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -398,8 +413,9 @@ class _CameraScreenState extends State<CameraScreen> {
                 ValueListenableBuilder<bool>(
                   valueListenable: _isLevelNotifier,
                   builder: (context, isLevel, _) {
+                    final canCapture = !requiresLevel || isLevel;
                     return CaptureButton(
-                      onTap: isLevel
+                      onTap: canCapture
                           ? _takePicture
                           : () {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -411,7 +427,7 @@ class _CameraScreenState extends State<CameraScreen> {
                                 ),
                               );
                             },
-                      isReady: isLevel,
+                      isReady: canCapture,
                       isTakingPicture: _isTakingPicture,
                       readyColor: theme.readyColor,
                       idleColor: theme.idleColor,
@@ -437,12 +453,19 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 }
 
-class LevelHorizonPainter extends CustomPainter {
+/// Draws a bubble-level style reticle: a fixed crosshair + target ring at
+/// the center, and a bubble offset by [bubbleOffset] — roll on the x-axis,
+/// pitch on the y-axis. The bubble settles into the crosshair once both
+/// axes are within tolerance ([isLevel]), showing tilt in both directions
+/// at once instead of left/right alone.
+class LevelCrosshairPainter extends CustomPainter {
+  final Offset bubbleOffset;
   final bool isLevel;
   final Color readyColor;
   final Color idleColor;
 
-  LevelHorizonPainter({
+  LevelCrosshairPainter({
+    required this.bubbleOffset,
     required this.isLevel,
     this.readyColor = Colors.greenAccent,
     this.idleColor = Colors.white,
@@ -450,39 +473,48 @@ class LevelHorizonPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = isLevel ? readyColor : idleColor.withValues(alpha: 0.5)
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
+    final center = Offset(size.width / 2, size.height / 2);
+    final color = isLevel ? readyColor : idleColor.withValues(alpha: 0.6);
 
-    // CustomPaint's canvas origin is the box's top-left corner, not its
-    // center, so every point here is drawn relative to centerY to line up
-    // with Transform.rotate's pivot (the box's center) — otherwise the line
-    // ends up offset from the rotation axis and swings like a lever instead
-    // of pivoting evenly from its middle.
-    final centerY = size.height / 2;
+    final reticlePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
 
-    // Draw main horizon line
-    canvas.drawLine(Offset(0, centerY), Offset(size.width, centerY), paint);
+    // Target ring — the zone the bubble needs to settle inside.
+    canvas.drawCircle(center, 30, reticlePaint);
 
-    // Draw center indicator
-    final centerPaint = Paint()
+    // Crosshair ticks through the center.
+    const tickLength = 10.0;
+    canvas.drawLine(
+      center - const Offset(tickLength, 0),
+      center + const Offset(tickLength, 0),
+      reticlePaint,
+    );
+    canvas.drawLine(
+      center - const Offset(0, tickLength),
+      center + const Offset(0, tickLength),
+      reticlePaint,
+    );
+
+    // The bubble itself — its distance from center encodes how far off
+    // level the device is on the roll and pitch axes simultaneously.
+    final bubbleCenter = center + bubbleOffset;
+    final bubbleFillPaint = Paint()
       ..color = isLevel ? readyColor : idleColor
       ..style = PaintingStyle.fill;
+    canvas.drawCircle(bubbleCenter, 7, bubbleFillPaint);
 
-    canvas.drawCircle(Offset(size.width / 2, centerY), 4, centerPaint);
-
-    // Draw small vertical "notches" at the ends
-    canvas.drawLine(Offset(0, centerY - 5), Offset(0, centerY + 5), paint);
-    canvas.drawLine(
-      Offset(size.width, centerY - 5),
-      Offset(size.width, centerY + 5),
-      paint,
-    );
+    final bubbleOutlinePaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(bubbleCenter, 7, bubbleOutlinePaint);
   }
 
   @override
-  bool shouldRepaint(LevelHorizonPainter oldDelegate) =>
+  bool shouldRepaint(LevelCrosshairPainter oldDelegate) =>
+      oldDelegate.bubbleOffset != bubbleOffset ||
       oldDelegate.isLevel != isLevel ||
       oldDelegate.readyColor != readyColor ||
       oldDelegate.idleColor != idleColor;

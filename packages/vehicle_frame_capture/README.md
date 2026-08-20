@@ -6,9 +6,10 @@ It's deliberately unopinionated: no review UI, colors, fonts, or step list are f
 
 ## Features
 
-- 📸 **Configurable capture steps**: defaults to all 9 (Front, Left, Right, Back, Inside Front Row, Inside Back Row, Engine Bay, Dashboard & Odometer, Trunk/Boot), or pass your own subset/order
+- 📸 **Configurable capture steps**: defaults to 12 angles (6 exterior + 6 interior, see [`VehicleSide.defaultValues`](#vehicleside)), or pass your own subset/order — including any of the ~35 additional angles in [`VehicleSide.catalog`](#vehicleside), or fully custom ones via `VehicleSide.custom(...)`
+- 🗂️ **Categorized**: every angle is tagged `exterior` or `interior` via `VehicleCaptureCategory`, for tabbed capture UIs
 - 🎯 **Rectangular frame overlay**: a simple, universal framing guide used across every step
-- 📱 **Device leveling**: accelerometer-driven level detection, visualized with a horizon-line indicator, with tunable tolerance
+- 📱 **Device leveling**: accelerometer-driven level detection, visualized with a two-axis crosshair/bubble-level indicator, with tunable tolerance — and skippable per angle (`VehicleSide.requiresLevel`) for shots that are inherently tilted up/down (roof, engine bay, wheels, ...)
 - 🎨 **Themeable**: colors and text styles are all overridable via `VehicleCaptureTheme`; text falls back to your app's ambient `Theme` when not overridden — no font package is forced on you
 - 🔄 **Capture flow management**: automatic progression, with `onPhotoCaptured`/`onStepChanged` callbacks to react live
 - 🖼️ **Review UI is optional**: returns the captured images directly by default; opt into the bundled review screen with `showSummary: true` only if you want it
@@ -21,7 +22,7 @@ Add this to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  vehicle_frame_capture: ^3.0.0
+  vehicle_frame_capture: ^4.0.0
 ```
 
 ### Platform setup
@@ -56,7 +57,7 @@ Future<void> startCapture(BuildContext context) async {
   );
 
   if (images != null) {
-    // images.length == 9, one per VehicleSide, in flow order.
+    // images.length == 12, one per VehicleSide.defaultValues, in flow order.
     // Build your own review/upload UI with these — CameraScreen doesn't
     // show one unless you ask it to (see below).
   }
@@ -73,9 +74,9 @@ final images = await Navigator.push<List<File>>(
       showSummary: true, // shows the bundled SummaryScreen before returning
       steps: const [
         VehicleSide.front,
-        VehicleSide.left,
-        VehicleSide.right,
-        VehicleSide.back,
+        VehicleSide.frontRight,
+        VehicleSide.rearRight,
+        VehicleSide.rear,
       ],
       theme: const VehicleCaptureTheme(
         readyColor: Colors.orangeAccent,
@@ -94,6 +95,24 @@ final images = await Navigator.push<List<File>>(
 
 `CameraScreen` handles the entire flow internally — camera preview, leveling, the frame overlay, and per-step progression — and returns the captured `List<File>` (or `null` if the user backs out) via the standard `Navigator.pop` result.
 
+### Picking angles from the full catalog, or adding a custom one
+
+```dart
+CameraScreen(
+  steps: [
+    ...VehicleSide.defaultExterior,
+    VehicleSide.wheelFrontLeft,     // from the extended catalog
+    VehicleSide.vinPlate,
+    VehicleSide.custom(              // or define your own
+      label: 'Spare Tire',
+      instruction: 'Open the trunk and capture the spare tire compartment',
+      category: VehicleCaptureCategory.interior,
+      requiresLevel: false,
+    ),
+  ],
+)
+```
+
 ## Components
 
 ### `CameraScreen`
@@ -101,14 +120,16 @@ The capture flow as a single, self-contained screen. Push it and await its resul
 
 | Parameter | Default | Purpose |
 |---|---|---|
-| `steps` | all 9 `VehicleSide.values` | Which sides to capture, in order |
+| `steps` | `VehicleSide.defaultValues` (6 exterior + 6 interior) | Which angles to capture, in order |
 | `theme` | `VehicleCaptureTheme()` | Colors and text styles |
 | `showSummary` | `false` | Show the bundled `SummaryScreen` before returning, instead of returning immediately |
 | `resolutionPreset` | `ResolutionPreset.medium` | Camera capture quality |
 | `preferredLensDirection` | `CameraLensDirection.back` | Which camera to use (falls back to the first available) |
-| `levelYTolerance` / `levelZTolerance` | `1.0` / `2.0` | How strict the "level" check is |
+| `levelYTolerance` / `levelZTolerance` | `2.0` / `3.0` | How strict the "level" check is (m/s², roll/pitch) |
 | `onPhotoCaptured` | `null` | `(VehicleSide, File)` called after each photo is saved |
 | `onStepChanged` | `null` | `(VehicleSide, int index, int total)` called on each step transition |
+
+Each step's `VehicleSide.requiresLevel` overrides the tolerance check entirely for that step — when `false`, the level indicator is hidden and the shutter is always enabled, regardless of `levelYTolerance`/`levelZTolerance`.
 
 ### `VehicleCaptureTheme`
 Colors (`readyColor`, `idleColor`, `dangerColor`, `primaryColor`, `summaryBackgroundColor`) and optional text styles (`titleTextStyle`, `instructionTextStyle`, `labelTextStyle`) — anything left null falls back to the ambient `Theme`.
@@ -127,28 +148,39 @@ CustomPaint(
 ```
 
 ### `CaptureFlow`
-Manages capture state and progression across a list of `VehicleSide` steps.
+Manages capture state and progression over a configurable list of `VehicleSide` steps.
 
 ```dart
-final captureFlow = CaptureFlow(sides: [VehicleSide.front, VehicleSide.back]);
+final captureFlow = CaptureFlow(sides: [VehicleSide.front, VehicleSide.rear]);
 final currentStep = captureFlow.currentStep;
 captureFlow.nextStep();
 ```
 
 ### `VehicleSide`
+
+A plain class rather than an enum, so it isn't limited to a fixed set of angles:
+
 ```dart
-enum VehicleSide {
-  front,
-  left,
-  right,
-  back,
-  insideFrontRow,
-  insideBackRow,
-  engineBay,
-  dashboardOdometer,
-  trunk,
+class VehicleSide {
+  final String id;                        // stable identity (used for equality/Map keys)
+  final VehicleCaptureCategory category;  // exterior or interior
+  final String label;                     // shown in the header and on tiles
+  final String instruction;               // one-line guidance while active
+  final bool requiresLevel;               // false for angles shot tilted up/down
 }
 ```
+
+- `VehicleSide.defaultValues` — the 12 angles (`defaultExterior` + `defaultInterior`) used when no `steps`/`sides` are given.
+- `VehicleSide.catalog` (`catalogExterior` + `catalogInterior`) — every built-in angle, ~35 more beyond the defaults: wheels, windshield, headlights/taillights, license plate, VIN plate, undercarriage, engine bay, instrument cluster, glove box, seat belts, cargo area, and more.
+- `VehicleSide.custom({label, instruction, category, requiresLevel, id})` — define a one-off angle not in the catalog.
+
+### `VehicleCaptureCategory`
+
+```dart
+enum VehicleCaptureCategory { exterior, interior }
+```
+
+Groups angles for tabbed UIs — every `VehicleSide.category` is one of these.
 
 ## What this package does *not* do
 
