@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.1.0] - 2026-09-18
+
+### Added
+- `VehicleSide.buttonPanel` — the button/switch panel to the left of the steering wheel.
+- `VehicleSide.driverSeat` — the driver's seat, including its side control buttons (distinct from `frontSeats`, which frames both front seats together).
+- Both are added to `VehicleSide.catalogInterior` (not `defaultInterior`, which is unchanged).
+
+### Changed
+- `VehicleSide.driverDoor`'s `instruction` now explicitly calls out capturing the door's control buttons.
+
 ## [4.0.1] - 2026-08-20
 
 ### Fixed

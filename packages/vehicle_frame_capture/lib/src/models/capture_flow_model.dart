@@ -296,7 +296,8 @@ class VehicleSide {
     id: 'driverDoor',
     category: VehicleCaptureCategory.interior,
     label: 'Driver Door',
-    instruction: 'Capture the interior of the driver door',
+    instruction:
+        'Capture the interior of the driver door, including its control buttons',
   );
 
   // ---------------------------------------------------------------------
@@ -314,6 +315,12 @@ class VehicleSide {
     category: VehicleCaptureCategory.interior,
     label: 'Front Seats',
     instruction: 'Capture the front seats clearly',
+  );
+  static const driverSeat = VehicleSide(
+    id: 'driverSeat',
+    category: VehicleCaptureCategory.interior,
+    label: 'Driver Seat',
+    instruction: 'Capture the driver seat, including its side control buttons',
   );
   static const rearSeats = VehicleSide(
     id: 'rearSeats',
@@ -352,6 +359,12 @@ class VehicleSide {
     category: VehicleCaptureCategory.interior,
     label: 'Steering Wheel',
     instruction: 'Capture the steering wheel clearly',
+  );
+  static const buttonPanel = VehicleSide(
+    id: 'buttonPanel',
+    category: VehicleCaptureCategory.interior,
+    label: 'Button Panel',
+    instruction: 'Capture the button panel to the left of the steering wheel',
   );
   static const infotainmentScreen = VehicleSide(
     id: 'infotainmentScreen',
@@ -474,12 +487,14 @@ class VehicleSide {
     ...defaultInterior,
     instrumentCluster,
     frontSeats,
+    driverSeat,
     rearSeats,
     passengerDoor,
     rearDoor,
     headliner,
     sunroofInterior,
     steeringWheel,
+    buttonPanel,
     infotainmentScreen,
     gloveBox,
     doorSillsPillars,
