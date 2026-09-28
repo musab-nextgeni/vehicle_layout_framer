@@ -126,6 +126,7 @@ The capture flow as a single, self-contained screen. Push it and await its resul
 | `resolutionPreset` | `ResolutionPreset.max` | Camera capture quality (highest the device supports) |
 | `preferredLensDirection` | `CameraLensDirection.back` | Which camera to use (falls back to the first available) |
 | `levelYTolerance` / `levelZTolerance` | `2.0` / `3.0` | How strict the "level" check is (m/s², roll/pitch) |
+| `enableTapToFocus` | `true` | Tap the preview to set focus + exposure at that point (resets each step) |
 | `onPhotoCaptured` | `null` | `(VehicleSide, File)` called after each photo is saved |
 | `onStepChanged` | `null` | `(VehicleSide, int index, int total)` called on each step transition |
 

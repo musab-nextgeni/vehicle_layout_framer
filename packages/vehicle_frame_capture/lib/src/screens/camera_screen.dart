@@ -50,6 +50,7 @@ class CameraScreen extends StatefulWidget {
     this.preferredLensDirection = CameraLensDirection.back,
     this.levelYTolerance = 2.0,
     this.levelZTolerance = 3.0,
+    this.enableTapToFocus = true,
     this.onPhotoCaptured,
     this.onStepChanged,
   });
@@ -83,6 +84,13 @@ class CameraScreen extends StatefulWidget {
   /// "level". Defaults to 3.0 (~17.7° of tilt).
   final double levelZTolerance;
 
+  /// If true, tapping the preview moves focus and exposure metering to the
+  /// tapped point, shown with a brief focus ring. Resets to the camera's
+  /// default (center) metering on every new step, so a point chosen for one
+  /// angle doesn't carry over to the next. Silently does nothing on cameras
+  /// that don't support point metering.
+  final bool enableTapToFocus;
+
   /// Called after each photo is saved to disk.
   final PhotoCapturedCallback? onPhotoCaptured;
 
@@ -111,6 +119,17 @@ class _CameraScreenState extends State<CameraScreen> {
   // showing left/right tilt alone.
   final ValueNotifier<double> _rollNotifier = ValueNotifier(0.0);
   final ValueNotifier<double> _pitchNotifier = ValueNotifier(0.0);
+
+  // Tap-to-focus. The ring is a ValueNotifier for the same reason as the
+  // leveling state above: a tap should only rebuild the ring, not the
+  // preview. Taps landing while a metering call is still in flight are
+  // coalesced into the latest point instead of queued, so rapid taps don't
+  // make the lens hunt through every intermediate position.
+  final GlobalKey _stackKey = GlobalKey();
+  final ValueNotifier<_FocusTap?> _focusTapNotifier = ValueNotifier(null);
+  int _focusTapCount = 0;
+  Offset? _pendingMeteringPoint;
+  bool _isApplyingMeteringPoint = false;
 
   @override
   void initState() {
@@ -205,6 +224,7 @@ class _CameraScreenState extends State<CameraScreen> {
     _isLevelNotifier.dispose();
     _rollNotifier.dispose();
     _pitchNotifier.dispose();
+    _focusTapNotifier.dispose();
     // Restore portrait now that the capture flow is done.
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -238,6 +258,7 @@ class _CameraScreenState extends State<CameraScreen> {
           _captureFlow.nextStep();
           _isTakingPicture = false;
         });
+        _resetMeteringPoint();
         widget.onStepChanged?.call(
           _captureFlow.currentStep.side,
           _captureFlow.currentStepIndex,
@@ -266,6 +287,69 @@ class _CameraScreenState extends State<CameraScreen> {
         _isTakingPicture = false;
       });
     }
+  }
+
+  void _onPreviewTapUp(TapUpDetails details, Size previewSize) {
+    if (_isTakingPicture) return;
+
+    // details.localPosition is in the SizedBox's preview-sized coordinate
+    // space (the GestureDetector sits inside the FittedBox), so the
+    // BoxFit.cover crop is already accounted for — dividing by previewSize
+    // gives the 0..1 point the camera plugin expects.
+    final point = Offset(
+      (details.localPosition.dx / previewSize.width).clamp(0.0, 1.0),
+      (details.localPosition.dy / previewSize.height).clamp(0.0, 1.0),
+    );
+
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox != null) {
+      _focusTapNotifier.value = _FocusTap(
+        id: ++_focusTapCount,
+        position: stackBox.globalToLocal(details.globalPosition),
+      );
+    }
+
+    _pendingMeteringPoint = point;
+    _drainMeteringPoints();
+  }
+
+  Future<void> _drainMeteringPoints() async {
+    if (_isApplyingMeteringPoint) return;
+    _isApplyingMeteringPoint = true;
+    try {
+      while (_pendingMeteringPoint != null) {
+        final point = _pendingMeteringPoint!;
+        _pendingMeteringPoint = null;
+        await _applyMeteringPoint(point);
+      }
+    } finally {
+      _isApplyingMeteringPoint = false;
+    }
+  }
+
+  /// Points focus and exposure at [point], or back at the camera's default
+  /// when null. Focus mode itself stays [FocusMode.auto] (continuous), so
+  /// the camera keeps refocusing around the point as the user reframes.
+  Future<void> _applyMeteringPoint(Offset? point) async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    try {
+      if (controller.value.focusPointSupported) {
+        await controller.setFocusPoint(point);
+      }
+      if (controller.value.exposurePointSupported) {
+        await controller.setExposurePoint(point);
+      }
+    } on CameraException catch (e) {
+      debugPrint('Error setting focus/exposure point: $e');
+    }
+  }
+
+  void _resetMeteringPoint() {
+    if (!widget.enableTapToFocus) return;
+    _pendingMeteringPoint = null;
+    _focusTapNotifier.value = null;
+    _applyMeteringPoint(null);
   }
 
   TextStyle _titleStyle(BuildContext context) =>
@@ -302,6 +386,7 @@ class _CameraScreenState extends State<CameraScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
+        key: _stackKey,
         fit: StackFit.expand,
         children: [
           FutureBuilder<void>(
@@ -314,13 +399,21 @@ class _CameraScreenState extends State<CameraScreen> {
                 // the preview at its native (landscape-locked) aspect ratio and
                 // crops the overflow, avoiding distortion.
                 final previewSize = _controller!.value.previewSize!;
+                final preview = CameraPreview(_controller!);
                 return ClipRect(
                   child: FittedBox(
                     fit: BoxFit.cover,
                     child: SizedBox(
                       width: previewSize.width,
                       height: previewSize.height,
-                      child: CameraPreview(_controller!),
+                      child: widget.enableTapToFocus
+                          ? GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTapUp: (details) =>
+                                  _onPreviewTapUp(details, previewSize),
+                              child: preview,
+                            )
+                          : preview,
                     ),
                   ),
                 );
@@ -330,21 +423,48 @@ class _CameraScreenState extends State<CameraScreen> {
             },
           ),
 
-          // Overlay
-          ValueListenableBuilder<bool>(
-            valueListenable: _isLevelNotifier,
-            builder: (context, isLevel, _) {
-              final effectiveIsLevel = !requiresLevel || isLevel;
-              return CustomPaint(
-                painter: VehicleFramePainter(
-                  isReady: effectiveIsLevel,
-                  readyColor: theme.readyColor,
-                  idleColor: theme.idleColor,
-                ),
-                size: Size.infinite,
-              );
-            },
+          // Overlay. IgnorePointer because a full-screen CustomPaint
+          // otherwise absorbs every tap meant for the preview underneath.
+          IgnorePointer(
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _isLevelNotifier,
+              builder: (context, isLevel, _) {
+                final effectiveIsLevel = !requiresLevel || isLevel;
+                return CustomPaint(
+                  painter: VehicleFramePainter(
+                    isReady: effectiveIsLevel,
+                    readyColor: theme.readyColor,
+                    idleColor: theme.idleColor,
+                  ),
+                  size: Size.infinite,
+                );
+              },
+            ),
           ),
+
+          // Focus ring at the last tapped point.
+          if (widget.enableTapToFocus)
+            IgnorePointer(
+              child: ValueListenableBuilder<_FocusTap?>(
+                valueListenable: _focusTapNotifier,
+                builder: (context, tap, _) {
+                  if (tap == null) return const SizedBox.shrink();
+                  return Stack(
+                    children: [
+                      Positioned(
+                        left: tap.position.dx - _FocusRing.size / 2,
+                        top: tap.position.dy - _FocusRing.size / 2,
+                        // Keyed per tap so each tap restarts the animation.
+                        child: _FocusRing(
+                          key: ValueKey(tap.id),
+                          color: theme.readyColor,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
 
           // Level Crosshair — combines roll (Y) and pitch (Z) into one
           // bubble-level indicator instead of showing left/right tilt
@@ -383,54 +503,59 @@ class _CameraScreenState extends State<CameraScreen> {
             Positioned(
               left: 20,
               bottom: 40,
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _isLevelNotifier,
-                builder: (context, isLevel, _) {
-                  final color = isLevel ? theme.readyColor : theme.dangerColor;
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: color, width: 2),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isLevel ? Icons.check_circle : Icons.error_outline,
-                          color: color,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          isLevel ? 'DEVICE LEVEL' : 'HOLD STRAIGHT',
-                          style: _labelStyle(context),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+              child: IgnorePointer(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _isLevelNotifier,
+                  builder: (context, isLevel, _) {
+                    final color =
+                        isLevel ? theme.readyColor : theme.dangerColor;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: color, width: 2),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isLevel ? Icons.check_circle : Icons.error_outline,
+                            color: color,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            isLevel ? 'DEVICE LEVEL' : 'HOLD STRAIGHT',
+                            style: _labelStyle(context),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
 
           // Header (Top from landscape)
           Positioned(
             right: MediaQuery.of(context).size.width * 0.3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  _captureFlow.currentStep.side.label,
-                  style: _titleStyle(context),
-                ),
-                Text(
-                  _captureFlow.currentStep.side.instruction,
-                  style: _instructionStyle(context),
-                ),
-              ],
+            child: IgnorePointer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    _captureFlow.currentStep.side.label,
+                    style: _titleStyle(context),
+                  ),
+                  Text(
+                    _captureFlow.currentStep.side.instruction,
+                    style: _instructionStyle(context),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -485,6 +610,73 @@ class _CameraScreenState extends State<CameraScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FocusTap {
+  const _FocusTap({required this.id, required this.position});
+
+  final int id;
+
+  /// Tap position in the screen Stack's coordinate space.
+  final Offset position;
+}
+
+/// A square focus reticle that shrinks into place, holds, then fades out.
+class _FocusRing extends StatefulWidget {
+  const _FocusRing({super.key, required this.color});
+
+  static const double size = 72;
+
+  final Color color;
+
+  @override
+  State<_FocusRing> createState() => _FocusRingState();
+}
+
+class _FocusRingState extends State<_FocusRing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..forward();
+
+  late final Animation<double> _scale = Tween(begin: 1.4, end: 1.0).animate(
+    CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.2, curve: Curves.easeOut),
+    ),
+  );
+
+  late final Animation<double> _opacity = Tween(begin: 1.0, end: 0.0).animate(
+    CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.7, 1.0, curve: Curves.easeIn),
+    ),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          width: _FocusRing.size,
+          height: _FocusRing.size,
+          decoration: BoxDecoration(
+            border: Border.all(color: widget.color, width: 1.5),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
       ),
     );
   }

@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.0] - 2026-09-28
+
+### Added
+- Tap-to-focus: tapping the `CameraScreen` preview moves both focus and exposure metering to the tapped point, with a brief focus ring. Focus stays continuous (`FocusMode.auto`) around the point, so it keeps tracking as the user reframes. Rapid taps are coalesced into the latest point rather than queued. Metering resets to the camera default at every new step. Controlled by the new `CameraScreen.enableTapToFocus` (default `true`); no-op on cameras without point-metering support.
+
+### Changed
+- The frame overlay, level indicator and step header no longer absorb taps (wrapped in `IgnorePointer`), so taps reach the preview.
+
 ## [4.2.1] - 2026-09-28
 
 ### Changed

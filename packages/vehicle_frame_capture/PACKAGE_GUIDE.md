@@ -130,6 +130,9 @@ This reflects device level only — the package does not perform any on-device v
 ### Camera Controls
 `resolutionPreset` (default `ResolutionPreset.max`, the highest the device supports) and `preferredLensDirection` (default `CameraLensDirection.back`, falls back to the first available camera if no match) are both configurable.
 
+### Tap to Focus
+With `enableTapToFocus` (default `true`), tapping the preview points both focus and exposure at the tapped spot and shows a short focus ring — useful for a white car against a bright sky, or a dark interior with bright windows, where whole-frame auto-exposure gets the car wrong. Focus stays continuous around that point; rapid taps collapse into the latest one; each new step resets metering to the camera default. Cameras without point-metering support ignore the tap.
+
 ## 🔧 Components
 
 ### VehicleFramePainter
