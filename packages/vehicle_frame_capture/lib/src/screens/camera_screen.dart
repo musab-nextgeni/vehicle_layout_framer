@@ -67,7 +67,7 @@ class CameraScreen extends StatefulWidget {
 
   /// Camera capture resolution. Higher presets produce larger, higher
   /// quality images at the cost of more processing per frame. Defaults to
-  /// [ResolutionPreset.max]
+  /// [ResolutionPreset.max], the highest resolution the device supports.
   final ResolutionPreset resolutionPreset;
 
   /// Which camera to prefer (front or back). Falls back to the first

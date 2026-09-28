@@ -1,5 +1,10 @@
 # Changelog
 
+## [4.2.1] - 2026-09-28
+
+### Changed
+- `CameraScreen.resolutionPreset` now defaults to `ResolutionPreset.max` (the highest resolution the device camera supports) instead of `ResolutionPreset.veryHigh` (1080p). Pass `resolutionPreset: ResolutionPreset.veryHigh` to keep the 4.2.0 behavior.
+
 ## [4.2.0] - 2026-09-25
 
 ### Changed

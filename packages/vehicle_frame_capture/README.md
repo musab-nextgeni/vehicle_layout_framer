@@ -123,7 +123,7 @@ The capture flow as a single, self-contained screen. Push it and await its resul
 | `steps` | `VehicleSide.defaultValues` (6 exterior + 6 interior) | Which angles to capture, in order |
 | `theme` | `VehicleCaptureTheme()` | Colors and text styles |
 | `showSummary` | `false` | Show the bundled `SummaryScreen` before returning, instead of returning immediately |
-| `resolutionPreset` | `ResolutionPreset.veryHigh` | Camera capture quality (1080p) |
+| `resolutionPreset` | `ResolutionPreset.max` | Camera capture quality (highest the device supports) |
 | `preferredLensDirection` | `CameraLensDirection.back` | Which camera to use (falls back to the first available) |
 | `levelYTolerance` / `levelZTolerance` | `2.0` / `3.0` | How strict the "level" check is (m/s², roll/pitch) |
 | `onPhotoCaptured` | `null` | `(VehicleSide, File)` called after each photo is saved |
