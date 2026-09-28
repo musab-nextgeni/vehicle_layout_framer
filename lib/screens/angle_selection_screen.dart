@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:vehicle_frame_capture/vehicle_frame_capture.dart';
 
@@ -26,7 +25,7 @@ class AngleSelectionScreen extends StatefulWidget {
     super.key,
     this.sides,
     this.theme = const VehicleCaptureTheme(),
-    this.resolutionPreset = ResolutionPreset.medium,
+    this.resolutionPreset = ResolutionPreset.max,
     this.preferredLensDirection = CameraLensDirection.back,
     this.levelYTolerance = 2.0,
     this.levelZTolerance = 3.0,

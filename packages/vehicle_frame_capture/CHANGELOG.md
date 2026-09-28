@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.2.0] - 2026-09-25
+
+### Changed
+- `CameraScreen.resolutionPreset` now defaults to `ResolutionPreset.veryHigh` (1080p) instead of `ResolutionPreset.medium` (480p), which was too low-resolution for vehicle listing photos. Pass `resolutionPreset: ResolutionPreset.medium` to keep the old behavior.
+
+### Added
+- `ResolutionPreset` and `CameraLensDirection` are re-exported from `package:vehicle_frame_capture/vehicle_frame_capture.dart`, so callers can configure `CameraScreen` without depending on `camera` directly.
+
 ## [4.1.0] - 2026-09-18
 
 ### Added

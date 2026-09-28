@@ -3,6 +3,10 @@
 /// widget. See [CameraScreen] for the main entry point.
 library;
 
+// Re-exported so callers can set CameraScreen.resolutionPreset /
+// preferredLensDirection without adding `camera` as a direct dependency.
+export 'package:camera/camera.dart' show ResolutionPreset, CameraLensDirection;
+
 // Export models
 export 'src/models/capture_flow_model.dart';
 

@@ -46,7 +46,7 @@ class CameraScreen extends StatefulWidget {
     this.steps,
     this.theme = const VehicleCaptureTheme(),
     this.showSummary = false,
-    this.resolutionPreset = ResolutionPreset.medium,
+    this.resolutionPreset = ResolutionPreset.max,
     this.preferredLensDirection = CameraLensDirection.back,
     this.levelYTolerance = 2.0,
     this.levelZTolerance = 3.0,
@@ -66,7 +66,8 @@ class CameraScreen extends StatefulWidget {
   final bool showSummary;
 
   /// Camera capture resolution. Higher presets produce larger, higher
-  /// quality images at the cost of more processing per frame.
+  /// quality images at the cost of more processing per frame. Defaults to
+  /// [ResolutionPreset.max]
   final ResolutionPreset resolutionPreset;
 
   /// Which camera to prefer (front or back). Falls back to the first

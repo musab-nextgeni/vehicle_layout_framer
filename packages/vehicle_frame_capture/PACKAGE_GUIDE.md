@@ -128,7 +128,7 @@ This reflects device level only — the package does not perform any on-device v
 `onPhotoCaptured: (side, file) => ...` fires after each photo is saved; `onStepChanged: (side, index, total) => ...` fires on each step transition — use these to react live (e.g. start uploading as photos come in) instead of waiting for the whole flow to finish.
 
 ### Camera Controls
-`resolutionPreset` (default `ResolutionPreset.medium`) and `preferredLensDirection` (default `CameraLensDirection.back`, falls back to the first available camera if no match) are both configurable.
+`resolutionPreset` (default `ResolutionPreset.veryHigh`, 1080p) and `preferredLensDirection` (default `CameraLensDirection.back`, falls back to the first available camera if no match) are both configurable.
 
 ## 🔧 Components
 
